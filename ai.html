@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <link rel="stylesheet" href="ai.css">
+    <a href="index.html" class="reference">Back to Baltic page</a>
+
+    <style>
+    .reference {
+  position: fixed;   /* stays in place even when scrolling */
+  bottom: 10px;      /* distance from the bottom edge */
+  left: 10px;        /* distance from the left edge */
+  font-size: 14px;   /* optional styling */
+  color: blue;       /* optional styling */
+  font-family: Georgia, 'Times New Roman', Times, serif;
+}
+    </style>
+
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tech Stadium Pong</title>
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.5.1/dist/confetti.browser.min.js"></script>
+    <style>
+        body { margin: 0; display: flex; justify-content: center; align-items: center; height: 100vh; background: #0a0a12; font-family: 'Courier New', Courier, monospace; overflow: hidden; color: white; }
+        #stadium { position: relative; border: 4px solid #00f2ff; box-shadow: 0 0 30px rgba(0, 242, 255, 0.2); background: #000; }
+        canvas { display: block; }
+        
+        /* HUD & Controls */
+        .hud { position: absolute; top: 0; width: 100%; display: flex; justify-content: space-between; padding: 20px 50px; box-sizing: border-box; pointer-events: none; z-index: 5; }
+        .score-box { text-align: center; font-weight: 900; background: rgba(0,0,0,0.5); padding: 10px; border-radius: 10px; }
+        .p1-color { color: #00f2ff; text-shadow: 0 0 10px #00f2ff; }
+        .p2-color { color: #ff007f; text-shadow: 0 0 10px #ff007f; }
+        #timer { font-size: 50px; color: #fbff00; text-shadow: 0 0 15px #fbff00; }
+        
+        #pause-trigger { position: absolute; bottom: 15px; left: 50%; transform: translateX(-50%); z-index: 6; }
+        .btn-pause { padding: 8px 20px; font-size: 14px; background: rgba(255,255,255,0.1); border: 1px solid #fff; color: #fff; cursor: pointer; border-radius: 4px; }
+
+        /* Effects & Overlays */
+        #flash-left, #flash-right { position: absolute; top: 0; width: 50%; height: 100%; pointer-events: none; opacity: 0; transition: opacity 0.1s; z-index: 2; }
+        #flash-left { left: 0; background: linear-gradient(to right, rgba(255,0,0,0.5), transparent); }
+        #flash-right { right: 0; background: linear-gradient(to left, rgba(255,0,0,0.5), transparent); }
+
+        .overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.95); display: flex; flex-direction: column; justify-content: center; align-items: center; z-index: 10; text-align: center; }
+        .hidden { display: none !important; }
+        
+        button { padding: 15px 35px; margin: 10px; font-size: 20px; font-weight: bold; cursor: pointer; border: 2px solid #fff; background: transparent; color: white; border-radius: 5px; transition: 0.3s; }
+        button:hover { background: white; color: black; box-shadow: 0 0 20px white; }
+        .btn-blue { border-color: #00f2ff; color: #00f2ff; }
+        .btn-pink { border-color: #ff007f; color: #ff007f; }
+
+        .trophy { font-size: 120px; margin-bottom: 5px; animation: glow 2s infinite alternate; }
+        @keyframes glow { from { filter: drop-shadow(0 0 10px gold); } to { filter: drop-shadow(0 0 30px gold); } }
+        .winner-num { font-size: 80px; font-weight: bold; line-height: 1; margin-top: 10px; }
+
+        #speed-alert { position: absolute; top: 40%; width: 100%; text-align: center; font-size: 40px; color: #fbff00; font-weight: bold; opacity: 0; transition: 0.5s; pointer-events: none; z-index: 8; }
+    </style>
+</head>
+<body>
+
+<div id="stadium">
+    <div id="flash-left"></div>
+    <div id="flash-right"></div>
+    <div id="speed-alert">LEVEL UP: FASTER!</div>
+
+    <div class="hud">
+        <div class="score-box p1-color">PLAYER 1<br><span id="s1" style="font-size:40px">0</span></div>
+        <div id="timer">30</div>
+        <div class="score-box p2-color">PLAYER 2<br><span id="s2" style="font-size:40px">0</span></div>
+    </div>
+
+    <div id="pause-trigger" class="hidden">
+        <button class="btn-pause" onclick="togglePause()">PAUSE (P)</button>
+    </div>
+
+    <canvas id="pong" width="800" height="450"></canvas>
+
+    <div id="start-screen" class="overlay">
+        <h1 style="font-size: 45px; text-shadow: 0 0 20px #00f2ff;">CYBER STADIUM</h1>
+        <div style="display:flex">
+            <button class="btn-blue" onclick="init(1)">1 Player</button>
+            <button class="btn-pink" onclick="init(2)">2 Players</button>
+        </div>
+        <p style="color: #666; margin-top: 20px;">1P: Arrows | 2P: Arrows vs W/S</p>
+    </div>
+
+    <div id="pause-screen" class="overlay hidden">
+        <h1 style="color: #fbff00; font-size: 50px;">GAME PAUSED</h1>
+        <button class="btn-blue" onclick="togglePause()">CONTINUE GAME</button>
+        <button style="border-color: #ff4444; color: #ff4444;" onclick="location.reload()">QUIT MATCH</button>
+    </div>
+
+    <div id="end-screen" class="overlay hidden">
+        <div class="trophy">🏆</div>
+        <div class="winner-display" style="font-size: 24px;">CHAMPION</div>
+        <div id="winner-label" class="winner-num">1</div>
+        <div style="margin-top: 20px;">
+            <button class="btn-blue" onclick="rematch()">REMATCH</button>
+            <button style="border-color: #ff4444; color: #ff4444;" onclick="location.reload()">QUIT</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    const canvas = document.getElementById("pong");
+    const ctx = canvas.getContext("2d");
+    let audioCtx;
+
+    let p1Score = 0, p2Score = 0, timeLeft = 30;
+    let isRunning = false, isPaused = false, isAi = false;
+    let ball, p1, p2, keys = {}, timerInterval;
+    
+    let tournamentLevel = 0;
+    let baseBallSpeed = 5;
+
+    function playTone(freq, type, dur, vol = 0.1) {
+        if(!audioCtx || isPaused) return;
+        const osc = audioCtx.createOscillator();
+        const g = audioCtx.createGain();
+        osc.type = type; osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+        g.gain.setValueAtTime(vol, audioCtx.currentTime);
+        g.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + dur);
+        osc.connect(g); g.connect(audioCtx.destination);
+        osc.start(); osc.stop(audioCtx.currentTime + dur);
+    }
+
+    function startMusic() {
+        if(!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        const loop = () => {
+            if(!isRunning) return;
+            if(!isPaused) {
+                playTone(60, 'square', 0.1, 0.08); 
+                playTone(110 + (tournamentLevel * 10), 'sine', 0.2, 0.05); 
+            }
+            setTimeout(loop, Math.max(200, 500 - (tournamentLevel * 50)));
+        };
+        loop();
+    }
+
+    function togglePause() {
+        if(!isRunning) return;
+        isPaused = !isPaused;
+        document.getElementById("pause-screen").classList.toggle("hidden", !isPaused);
+        if(!isPaused) requestAnimationFrame(gameLoop);
+    }
+
+    function flash(side) {
+        const el = document.getElementById(side === 'left' ? 'flash-left' : 'flash-right');
+        el.style.opacity = "1";
+        playTone(100, 'sawtooth', 0.4, 0.2); 
+        setTimeout(() => el.style.opacity = "0", 150);
+    }
+
+    function init(players) {
+        isAi = (players === 1);
+        document.getElementById("start-screen").classList.add("hidden");
+        document.getElementById("pause-trigger").classList.remove("hidden");
+        startMatch();
+    }
+
+    function startMatch() {
+        isRunning = true;
+        isPaused = false;
+        p1Score = 0; p2Score = 0; timeLeft = 30;
+        document.getElementById("s1").innerText = "0";
+        document.getElementById("s2").innerText = "0";
+        document.getElementById("timer").innerText = "30";
+        
+        resetPositions();
+        startMusic();
+        
+        timerInterval = setInterval(() => {
+            if(!isPaused && isRunning) {
+                timeLeft--;
+                document.getElementById("timer").innerText = timeLeft;
+                if(timeLeft <= 0) endGame();
+            }
+        }, 1000);
+        
+        requestAnimationFrame(gameLoop);
+    }
+
+    function resetPositions() {
+        p1 = { y: 185, h: 80, w: 12 };
+        p2 = { y: 185, h: 80, w: 12 };
+        ball = { x: 400, y: 225, dx: baseBallSpeed, dy: baseBallSpeed * 0.6, r: 8 };
+    }
+
+    function rematch() {
+        tournamentLevel++;
+        baseBallSpeed += 1.5;
+        document.getElementById("end-screen").classList.add("hidden");
+        const alert = document.getElementById("speed-alert");
+        alert.style.opacity = "1";
+        setTimeout(() => alert.style.opacity = "0", 1500);
+        startMatch();
+    }
+
+    window.onkeydown = e => {
+        keys[e.key] = true;
+        if(e.key.toLowerCase() === 'p') togglePause();
+    };
+    window.onkeyup = e => keys[e.key] = false;
+
+    function gameLoop() {
+        if(!isRunning || isPaused) return;
+        
+        if(keys['ArrowUp'] && p1.y > 0) p1.y -= 7;
+        if(keys['ArrowDown'] && p1.y < canvas.height - p1.h) p1.y += 7;
+
+        if(isAi) {
+            let target = ball.y - p2.h/2;
+            p2.y += (target - p2.y) * (0.09 + (tournamentLevel * 0.01)); 
+        } else {
+            if(keys['w'] && p2.y > 0) p2.y -= 7;
+            if(keys['s'] && p2.y < canvas.height - p2.h) p2.y += 7;
+        }
+
+        ball.x += ball.dx; ball.y += ball.dy;
+        if(ball.y < 0 || ball.y > canvas.height) { ball.dy *= -1; playTone(300, 'sine', 0.1); }
+
+        if(ball.x < 30 && ball.y > p1.y && ball.y < p1.y + p1.h) { 
+            ball.dx = Math.abs(ball.dx) + 0.2; 
+            playTone(440, 'triangle', 0.1); 
+        }
+        if(ball.x > canvas.width - 30 && ball.y > p2.y && ball.y < p2.y + p2.h) { 
+            ball.dx = -Math.abs(ball.dx) - 0.2; 
+            playTone(880, 'triangle', 0.1); 
+        }
+
+        if(ball.x < 0) { p2Score++; flash('left'); document.getElementById("s2").innerText = p2Score; resetBall(); }
+        if(ball.x > canvas.width) { p1Score++; flash('right'); document.getElementById("s1").innerText = p1Score; resetBall(); }
+
+        draw();
+        requestAnimationFrame(gameLoop);
+    }
+
+    function resetBall() {
+        ball.x = 400; ball.y = 225;
+        ball.dx = (Math.random() > 0.5 ? baseBallSpeed : -baseBallSpeed);
+        ball.dy = (Math.random() - 0.5) * (baseBallSpeed * 1.5);
+    }
+
+    function draw() {
+        ctx.fillStyle = "rgba(0,0,0,0.2)";
+        ctx.fillRect(0,0,canvas.width, canvas.height);
+        ctx.strokeStyle = "rgba(0,242,255,0.1)"; ctx.setLineDash([5, 15]);
+        ctx.beginPath(); ctx.moveTo(400,0); ctx.lineTo(400,450); ctx.stroke();
+        ctx.fillStyle = "#00f2ff"; ctx.fillRect(10, p1.y, p1.w, p1.h);
+        ctx.fillStyle = "#ff007f"; ctx.fillRect(canvas.width - 22, p2.y, p2.w, p2.h);
+        ctx.fillStyle = "#fff"; ctx.beginPath(); ctx.arc(ball.x, ball.y, ball.r, 0, Math.PI*2); ctx.fill();
+    }
+
+    function endGame() {
+        isRunning = false;
+        clearInterval(timerInterval);
+        document.getElementById("pause-trigger").classList.add("hidden");
+        document.getElementById("end-screen").classList.remove("hidden");
+        const winner = p1Score >= p2Score ? "1" : "2";
+        const label = document.getElementById("winner-label");
+        label.innerText = winner;
+        label.style.color = winner == "1" ? "#00f2ff" : "#ff007f";
+        
+        confetti({ particleCount: 200, spread: 90, origin: { y: 0.6 } });
+        [523, 659, 783, 1046].forEach((f, i) => {
+            setTimeout(() => playTone(f, 'square', 0.6), i * 150);
+        });
+    }
+</script>
+</body>
+</html>
